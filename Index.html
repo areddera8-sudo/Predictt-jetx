@@ -1,0 +1,93 @@
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
+
+/**
+ * Classe pour prédire le tour et l'heure associé, à partir d'une heure de départ,
+ * d'un hash et d'un numéro de tour, en utilisant SHA-256.
+ */
+public class PredictionTour {
+
+    private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm:ss");
+
+    /**
+     * Calcule le SHA-256 d'une chaîne de caractères.
+     *
+     * @param input la chaîne à hasher
+     * @return le hash SHA-256 au format hexadécimal
+     */
+    public static String sha256(String input) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] bytes = md.digest(input.getBytes(StandardCharsets.UTF_8));
+            return bytesToHex(bytes);
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("SHA-256 algorithm not found", e);
+        }
+    }
+
+    /**
+     * Convertit un tableau de bytes en chaîne hexadécimale.
+     *
+     * @param bytes le tableau de bytes
+     * @return la chaîne hexadécimale
+     */
+    private static String bytesToHex(byte[] bytes) {
+        StringBuilder sb = new StringBuilder(bytes.length * 2);
+        for (byte b : bytes) {
+            sb.append(String.format("%02x", b));
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Calcule la prédiction du tour avec leur heure.
+     *
+     * @param heureDepart heure de départ au format HH:mm:ss
+     * @param hash        hash string utilisé comme seed
+     * @param tour        numéro du tour
+     * @return une chaîne de type "HH:mm:ss=predTour;predValue"
+     */
+    public static String calculerPrediction(String heureDepart, String hash, int tour) {
+        // Parse heure de départ
+        LocalTime time;
+        try {
+            time = LocalTime.parse(heureDepart, TIME_FORMAT);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Format heure invalide, attendu HH:mm:ss");
+        }
+
+        // Combine hash + tour + heure en string
+        String input = hash + ":" + tour + ":" + heureDepart;
+
+        // Calcul SHA-256
+        String sha256Hash = sha256(input);
+
+        // Extrait une valeur prédictive à partir du hash, par exemple :
+        // - premier nombre (2 digits) => prédiction tour
+        // - suivant (2 digits) => prédiction valeur (exemple arbitraire)
+
+        // Convertir les premiers 4 caractères hex en int
+        int predTour = Integer.parseInt(sha256Hash.substring(0, 2), 16) % 10; // modulo 10 pour tour < 10
+        int predValue = Integer.parseInt(sha256Hash.substring(2, 4), 16);      // valeur quelconque
+
+        // On suppose que chaque tour dure par exemple 1 minute, on ajoute predTour minutes à l'heure départ
+        LocalTime heurePrediction = time.plusMinutes(predTour);
+
+        // Format résultat : "HH:mm:ss=predTour;predValue"
+        return String.format("%s=%d;%d", heurePrediction.format(TIME_FORMAT), predTour, predValue);
+    }
+
+    // Exemple d'utilisation
+    public static void main(String[] args) {
+        String heureDepart = "13:23:32";
+        String hash = "abcdef1234567890";
+        int tour = 2;
+
+        String prediction = calculerPrediction(heureDepart, hash, tour);
+        System.out.println("Prédiction : " + prediction);
+        // Exemple de sortie : "13:25:32=7;66"
+    }
+}
